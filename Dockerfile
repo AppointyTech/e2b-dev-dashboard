@@ -44,17 +44,24 @@ ARG NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
 # (src/lib/env.ts: oryRequiredEnvVars + validateOryAdminEnv). Real secret
 # values are supplied at container runtime via k8s env/secrets, never
 # baked into the image.
+#
+# Cloud Build always passes --build-arg for every substitution, even ones
+# that default to '' — so an "optional" NEXT_PUBLIC_* var can arrive as an
+# explicitly empty string, not merely unset. Zod's .url()/.min(1) reject ""
+# the same as an invalid value (unlike a genuinely absent key), so each var
+# is unset here when empty rather than exported, keeping it truly absent
+# from process.env for the build.
 RUN --mount=type=cache,id=bun-build,target=/app/.next/cache \
-    [ -n "${NEXT_PUBLIC_DASHBOARD_API_URL}" ] && export NEXT_PUBLIC_DASHBOARD_API_URL="${NEXT_PUBLIC_DASHBOARD_API_URL}"; \
-    [ -n "${NEXT_PUBLIC_INFRA_API_URL}" ] && export NEXT_PUBLIC_INFRA_API_URL="${NEXT_PUBLIC_INFRA_API_URL}"; \
-    [ -n "${NEXT_PUBLIC_E2B_SANDBOX_URL}" ] && export NEXT_PUBLIC_E2B_SANDBOX_URL="${NEXT_PUBLIC_E2B_SANDBOX_URL}"; \
-    [ -n "${NEXT_PUBLIC_ORY_SDK_URL}" ] && export NEXT_PUBLIC_ORY_SDK_URL="${NEXT_PUBLIC_ORY_SDK_URL}"; \
-    [ -n "${NEXT_PUBLIC_POSTHOG_KEY}" ] && export NEXT_PUBLIC_POSTHOG_KEY="${NEXT_PUBLIC_POSTHOG_KEY}"; \
-    [ -n "${NEXT_PUBLIC_INCLUDE_BILLING}" ] && export NEXT_PUBLIC_INCLUDE_BILLING="${NEXT_PUBLIC_INCLUDE_BILLING}"; \
-    [ -n "${NEXT_PUBLIC_INCLUDE_ARGUS}" ] && export NEXT_PUBLIC_INCLUDE_ARGUS="${NEXT_PUBLIC_INCLUDE_ARGUS}"; \
-    [ -n "${NEXT_PUBLIC_INCLUDE_REPORT_ISSUE}" ] && export NEXT_PUBLIC_INCLUDE_REPORT_ISSUE="${NEXT_PUBLIC_INCLUDE_REPORT_ISSUE}"; \
-    [ -n "${NEXT_PUBLIC_INCLUDE_STATUS_INDICATOR}" ] && export NEXT_PUBLIC_INCLUDE_STATUS_INDICATOR="${NEXT_PUBLIC_INCLUDE_STATUS_INDICATOR}"; \
-    [ -n "${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY}" ] && export NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY="${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY}"; \
+    [ -z "${NEXT_PUBLIC_DASHBOARD_API_URL}" ] && unset NEXT_PUBLIC_DASHBOARD_API_URL; \
+    [ -z "${NEXT_PUBLIC_INFRA_API_URL}" ] && unset NEXT_PUBLIC_INFRA_API_URL; \
+    [ -z "${NEXT_PUBLIC_E2B_SANDBOX_URL}" ] && unset NEXT_PUBLIC_E2B_SANDBOX_URL; \
+    [ -z "${NEXT_PUBLIC_ORY_SDK_URL}" ] && unset NEXT_PUBLIC_ORY_SDK_URL; \
+    [ -z "${NEXT_PUBLIC_POSTHOG_KEY}" ] && unset NEXT_PUBLIC_POSTHOG_KEY; \
+    [ -z "${NEXT_PUBLIC_INCLUDE_BILLING}" ] && unset NEXT_PUBLIC_INCLUDE_BILLING; \
+    [ -z "${NEXT_PUBLIC_INCLUDE_ARGUS}" ] && unset NEXT_PUBLIC_INCLUDE_ARGUS; \
+    [ -z "${NEXT_PUBLIC_INCLUDE_REPORT_ISSUE}" ] && unset NEXT_PUBLIC_INCLUDE_REPORT_ISSUE; \
+    [ -z "${NEXT_PUBLIC_INCLUDE_STATUS_INDICATOR}" ] && unset NEXT_PUBLIC_INCLUDE_STATUS_INDICATOR; \
+    [ -z "${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY}" ] && unset NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY; \
     export DASHBOARD_API_ADMIN_TOKEN="build-placeholder"; \
     export E2B_SESSION_SECRET="build-placeholder"; \
     export ORY_SDK_URL="https://build-placeholder.projects.oryapis.com"; \

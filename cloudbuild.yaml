@@ -261,7 +261,7 @@ steps:
         tar -xzf "$${KUSTOMIZE_TARBALL}" -C /workspace
         chmod 0555 "$${KUSTOMIZE_BIN}"
 
-        IMAGE_NAME="${_DOCKER_REGISTRY}.pkg.dev/${_GCP_PROJECT}/${_REPOSITORY}/${_SERVICE_NAME}/main"
+        IMAGE_NAME="${_DOCKER_REGISTRY}.pkg.dev/${_GCP_PROJECT}/${_REPOSITORY}/${_SERVICE_NAME}/$BRANCH_NAME"
 
         (cd "$${OVERLAY_DIR}" && "$${KUSTOMIZE_BIN}" edit set image "$${IMAGE_NAME}=$${IMAGE_NAME}:${SHORT_SHA}")
 
