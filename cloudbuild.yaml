@@ -261,9 +261,18 @@ steps:
         tar -xzf "$${KUSTOMIZE_TARBALL}" -C /workspace
         chmod 0555 "$${KUSTOMIZE_BIN}"
 
-        IMAGE_NAME="${_DOCKER_REGISTRY}.pkg.dev/${_GCP_PROJECT}/${_REPOSITORY}/${_SERVICE_NAME}/$BRANCH_NAME"
+        # BASE_IMAGE_NAME must match the literal `image:` in
+        # k8s/base/e2b-dashboard/deployment.yaml — that's the key kustomize
+        # searches the images: list by. PUSHED_IMAGE_NAME is the path the
+        # build step actually pushed to (registry/.../<branch>). Using
+        # BASE_IMAGE_NAME as both the search key and the replacement name
+        # (as the other services' /main-branch triggers do) would update the
+        # existing images: entry in place instead of appending a new,
+        # ineffective one that never matches the base manifest.
+        BASE_IMAGE_NAME="${_DOCKER_REGISTRY}.pkg.dev/${_GCP_PROJECT}/${_REPOSITORY}/${_SERVICE_NAME}/main"
+        PUSHED_IMAGE_NAME="${_DOCKER_REGISTRY}.pkg.dev/${_GCP_PROJECT}/${_REPOSITORY}/${_SERVICE_NAME}/$BRANCH_NAME"
 
-        (cd "$${OVERLAY_DIR}" && "$${KUSTOMIZE_BIN}" edit set image "$${IMAGE_NAME}=$${IMAGE_NAME}:${SHORT_SHA}")
+        (cd "$${OVERLAY_DIR}" && "$${KUSTOMIZE_BIN}" edit set image "$${BASE_IMAGE_NAME}=$${PUSHED_IMAGE_NAME}:${SHORT_SHA}")
 
         if git diff --quiet -- "$${OVERLAY_DIR}"; then
           echo "No GitOps tag change needed for ${_SERVICE_NAME}; ${SHORT_SHA} is already set."
