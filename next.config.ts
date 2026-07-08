@@ -20,6 +20,7 @@ const browserNodeModuleStubs = {
 const config: NextConfig = {
   reactStrictMode: true,
   reactCompiler: true,
+  output: 'standalone',
   experimental: {
     useCache: true,
     turbopackFileSystemCacheForDev: true,

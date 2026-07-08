@@ -1,0 +1,318 @@
+steps:
+  # ============================================================================
+  # STEP 1: Fetch shared Hadolint configuration
+  # ============================================================================
+  - id: 'fetch-hadolint-config'
+    name: 'gcr.io/cloud-builders/git@sha256:a0040ee3b9751c1f7532a09bb4a1cf24987359990547830293cf85a81fd7a82f'
+    secretEnv:
+      - 'GITHUBTOKEN'
+    entrypoint: 'bash'
+    args:
+      - '-ceu'
+      - |
+        git clone \
+          --depth 1 \
+          --filter=blob:none \
+          --sparse \
+          "https://$${GITHUBTOKEN}@github.com/AppointyTech/helm-charts.git" \
+          /tmp/helm-charts
+
+        cd /tmp/helm-charts
+        git sparse-checkout set --no-cone hadolint/hadolint.yaml
+
+        cp hadolint/hadolint.yaml /workspace/hadolint.yaml
+
+  # ============================================================================
+  # STEP 2: Lint hardened Dockerfile and generate report
+  # ============================================================================
+  - id: 'lint-dockerfile'
+    name: 'gcr.io/cloud-builders/docker@sha256:4bba7e528b80529b917b5337cb7e4a23b99dcfe6ab755566cbb6d50bb4bc7442'
+    entrypoint: 'bash'
+    waitFor:
+      - 'fetch-hadolint-config'
+    args:
+      - '-ceu'
+      - |
+        docker run --rm \
+          -v /workspace:/workspace \
+          -w /workspace \
+          hadolint/hadolint:v2.14.0@sha256:27086352fd5e1907ea2b934eb1023f217c5ae087992eb59fde121dce9c9ff21e \
+          hadolint \
+          --config /workspace/hadolint.yaml \
+          --format json \
+          "${_DOCKERFILE}" > /workspace/hadolint-report.json || true
+        [ -s /workspace/hadolint-report.json ] || printf '[]\n' > /workspace/hadolint-report.json
+
+  # ============================================================================
+  # STEP 3: Build, Push, and Generate Provenance
+  # ============================================================================
+  - id: 'build-and-push-image'
+    name: 'gcr.io/cloud-builders/docker@sha256:4bba7e528b80529b917b5337cb7e4a23b99dcfe6ab755566cbb6d50bb4bc7442'
+    waitFor:
+      - 'lint-dockerfile'
+    entrypoint: 'bash'
+    env:
+      - 'BUILDKIT_PROGRESS=plain'
+    args:
+      - '-ceu'
+      - |
+        IMAGE_URI="${_DOCKER_REGISTRY}.pkg.dev/${_GCP_PROJECT}/${_REPOSITORY}/${_SERVICE_NAME}/${BRANCH_NAME}:${SHORT_SHA}"
+        BUILD_DATE="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+
+        docker buildx create --use --driver docker-container
+
+        echo "Building $${IMAGE_URI}"
+        docker buildx build \
+          --platform "${_PLATFORM}" \
+          --push \
+          --provenance=mode=max \
+          -f "${_DOCKERFILE}" \
+          --build-arg "BUILD_DATE=$${BUILD_DATE}" \
+          --build-arg "BUILD_VERSION=${SHORT_SHA}" \
+          --build-arg "GIT_SHA=${COMMIT_SHA}" \
+          --build-arg "NEXT_PUBLIC_E2B_DOMAIN=${_NEXT_PUBLIC_E2B_DOMAIN}" \
+          --build-arg "NEXT_PUBLIC_DASHBOARD_API_URL=${_NEXT_PUBLIC_DASHBOARD_API_URL}" \
+          --build-arg "NEXT_PUBLIC_INFRA_API_URL=${_NEXT_PUBLIC_INFRA_API_URL}" \
+          --build-arg "NEXT_PUBLIC_E2B_SANDBOX_URL=${_NEXT_PUBLIC_E2B_SANDBOX_URL}" \
+          --build-arg "NEXT_PUBLIC_ORY_SDK_URL=${_NEXT_PUBLIC_ORY_SDK_URL}" \
+          --build-arg "NEXT_PUBLIC_INCLUDE_BILLING=${_NEXT_PUBLIC_INCLUDE_BILLING}" \
+          --build-arg "NEXT_PUBLIC_INCLUDE_REPORT_ISSUE=${_NEXT_PUBLIC_INCLUDE_REPORT_ISSUE}" \
+          --build-arg "NEXT_PUBLIC_INCLUDE_STATUS_INDICATOR=${_NEXT_PUBLIC_INCLUDE_STATUS_INDICATOR}" \
+          -t "$${IMAGE_URI}" \
+          .
+
+        docker buildx imagetools inspect "$${IMAGE_URI}" --format "{{ json .Provenance.SLSA }}" > /workspace/provenance.json
+
+  # ============================================================================
+  # STEP 4: Generate SBOM (SPDX JSON)
+  # ============================================================================
+  - id: 'generate-sboms'
+    name: 'anchore/syft:v1.44.0@sha256:86fde6445b483d902fe011dd9f68c4987dd94e07da1e9edc004e3c2422650de6'
+    waitFor:
+      - 'build-and-push-image'
+    args:
+      - '${_DOCKER_REGISTRY}.pkg.dev/${_GCP_PROJECT}/${_REPOSITORY}/${_SERVICE_NAME}/${BRANCH_NAME}:${SHORT_SHA}'
+      - '-o'
+      - 'spdx-json'
+      - '--file'
+      - '/workspace/sbom.spdx.json'
+
+  # ============================================================================
+  # STEP 5: Scan image with Trivy
+  # ============================================================================
+  - id: 'scan-trivy'
+    name: 'aquasec/trivy:0.70.0@sha256:be1190afcb28352bfddc4ddeb71470835d16462af68d310f9f4bca710961a41e'
+    waitFor:
+      - 'build-and-push-image'
+    args:
+      - 'image'
+      - '--format'
+      - 'json'
+      - '--output'
+      - '/workspace/trivy-report.json'
+      - '${_DOCKER_REGISTRY}.pkg.dev/${_GCP_PROJECT}/${_REPOSITORY}/${_SERVICE_NAME}/${BRANCH_NAME}:${SHORT_SHA}'
+
+  # ============================================================================
+  # STEP 6: Scan image with Grype for risk scoring
+  # ============================================================================
+  - id: 'scan-grype'
+    name: 'anchore/grype:v0.112.0@sha256:391bfda62888fb4e98ff5c4c81598f7431a3c1eac3f8519d69d1ff00df247c1d'
+    waitFor:
+      - 'build-and-push-image'
+    args:
+      - 'registry:${_DOCKER_REGISTRY}.pkg.dev/${_GCP_PROJECT}/${_REPOSITORY}/${_SERVICE_NAME}/${BRANCH_NAME}:${SHORT_SHA}'
+      - '--output'
+      - 'json'
+      - '--file'
+      - '/workspace/grype-score-report.json'
+
+  # ============================================================================
+  # STEP 7: Security Scans, Sign, and Attest
+  # ============================================================================
+  - id: 'cosign-sign-and-attest'
+    name: 'gcr.io/cloud-builders/gcloud@sha256:46e6289806bc317cb06c2476ee53631d3e0046edb6743ef4486fd38f13f5ff93'
+    waitFor:
+      - 'build-and-push-image'
+      - 'generate-sboms'
+      - 'scan-trivy'
+      - 'scan-grype'
+      - 'lint-dockerfile'
+    secretEnv:
+      - 'KMS_KEY_URI'
+    entrypoint: 'bash'
+    args:
+      - '-ceu'
+      - |
+        COSIGN_VERSION='v2.4.1'
+        COSIGN_SHA256='8b24b946dd5809c6bd93de08033bcf6bc0ed7d336b7785787c080f574b89249b'
+        COSIGN_BIN="/workspace/cosign"
+
+        echo "Downloading Cosign $${COSIGN_VERSION}..."
+        curl -fsSL "https://github.com/sigstore/cosign/releases/download/$${COSIGN_VERSION}/cosign-linux-amd64" -o "$${COSIGN_BIN}"
+        printf '%s  %s\n' "$${COSIGN_SHA256}" "$${COSIGN_BIN}" | sha256sum -c -
+        chmod +x "$${COSIGN_BIN}"
+
+        IMAGE_REPO="${_DOCKER_REGISTRY}.pkg.dev/${_GCP_PROJECT}/${_REPOSITORY}/${_SERVICE_NAME}/${BRANCH_NAME}"
+        IMAGE_URI="$${IMAGE_REPO}:${SHORT_SHA}"
+        IMAGE_DIGEST="$$(gcloud artifacts docker images describe "$${IMAGE_URI}" --project="${_GCP_PROJECT}" --format='value(image_summary.digest)')"
+        IMAGE_REF="$${IMAGE_REPO}@$${IMAGE_DIGEST}"
+
+        echo "--- Signing Image ---"
+        "$${COSIGN_BIN}" sign --key "$${KMS_KEY_URI}" --yes "$${IMAGE_REF}"
+
+        echo "--- Attesting Reports ---"
+        "$${COSIGN_BIN}" attest --key "$${KMS_KEY_URI}" --type https://slsa.dev/provenance/v1 --predicate /workspace/provenance.json --yes "$${IMAGE_REF}"
+        "$${COSIGN_BIN}" attest --key "$${KMS_KEY_URI}" --type spdxjson --predicate /workspace/sbom.spdx.json --yes "$${IMAGE_REF}"
+        "$${COSIGN_BIN}" attest --key "$${KMS_KEY_URI}" --type custom --predicate /workspace/trivy-report.json --yes "$${IMAGE_REF}"
+        "$${COSIGN_BIN}" attest --key "$${KMS_KEY_URI}" --type custom --predicate /workspace/grype-score-report.json --yes "$${IMAGE_REF}"
+        "$${COSIGN_BIN}" attest --key "$${KMS_KEY_URI}" --type custom --predicate /workspace/hadolint-report.json --yes "$${IMAGE_REF}"
+
+  # ============================================================================
+  # STEP 8: Attach Hadolint, Trivy, and SBOM reports
+  # ============================================================================
+  - id: 'attach-reports'
+    name: 'gcr.io/cloud-builders/gcloud@sha256:46e6289806bc317cb06c2476ee53631d3e0046edb6743ef4486fd38f13f5ff93'
+    allowFailure: true
+    waitFor:
+      - 'lint-dockerfile'
+      - 'generate-sboms'
+      - 'scan-trivy'
+      - 'scan-grype'
+    entrypoint: 'bash'
+    args:
+      - '-ceu'
+      - |
+        IMAGE_REPO="${_DOCKER_REGISTRY}.pkg.dev/${_GCP_PROJECT}/${_REPOSITORY}/${_SERVICE_NAME}/${BRANCH_NAME}"
+        IMAGE_URI="$${IMAGE_REPO}:${SHORT_SHA}"
+        IMAGE_DIGEST="$$(gcloud artifacts docker images describe "$${IMAGE_URI}" --project="${_GCP_PROJECT}" --format='value(image_summary.digest)')"
+        IMAGE_REF="$${IMAGE_REPO}@$${IMAGE_DIGEST}"
+
+        echo "Attaching reports to $${IMAGE_REF}"
+
+        REPORTS=(
+          "sbom-spdx|application/spdx+json|/workspace/sbom.spdx.json"
+          "hadolint-report|application/vnd.hadolint.report.v1+json|/workspace/hadolint-report.json"
+          "trivy-report|application/vnd.aquasec.trivy.report.v1+json|/workspace/trivy-report.json"
+          "grype-score-report|application/vnd.anchore.grype.report.v1+json|/workspace/grype-score-report.json"
+        )
+
+        FULL_BUILD_ID="${BUILD_ID}"
+        SHORT_BUILD_ID="$${FULL_BUILD_ID:0:8}"
+
+        for report in "$${REPORTS[@]}"; do
+          IFS='|' read -r NAME TYPE FILE <<< "$${report}"
+
+          if [ ! -f "$${FILE}" ]; then
+            echo "ERROR: Report '$${FILE}' not found for attachment. Failing the build."
+            exit 1
+          fi
+
+          gcloud artifacts attachments create "$${NAME}-${SHORT_SHA}-$${SHORT_BUILD_ID}" \
+            --project="${_GCP_PROJECT}" \
+            --location="${_ARTIFACT_LOCATION}" \
+            --repository="${_REPOSITORY}" \
+            --target="$${IMAGE_REF}" \
+            --attachment-namespace="${_ATTACHMENT_NAMESPACE}" \
+            --attachment-type="$${TYPE}" \
+            --files="$${FILE}"
+        done
+
+  # ============================================================================
+  # STEP 9: Update image tag in ArgoCD GitOps Repository
+  # ============================================================================
+  - id: 'update-gitops-tag'
+    name: 'gcr.io/cloud-builders/git@sha256:a0040ee3b9751c1f7532a09bb4a1cf24987359990547830293cf85a81fd7a82f'
+    secretEnv:
+      - 'GITHUBTOKEN'
+    entrypoint: 'bash'
+    waitFor:
+      - 'attach-reports'
+      - 'cosign-sign-and-attest'
+    args:
+      - '-ceu'
+      - |
+        git config --global user.email "devops@appointy.com"
+        git config --global user.name "Codefac Cloud Build"
+
+        git clone \
+          --depth 1 \
+          --filter=blob:none \
+          --sparse \
+          "https://$$GITHUBTOKEN@github.com/AppointyTech/codefac-gitops.git" \
+          /workspace/codefac-gitops
+        cd /workspace/codefac-gitops
+
+        OVERLAY_DIR="k8s/overlays/codefac/${_SERVICE_NAME}"
+
+        git sparse-checkout set --no-cone "$${OVERLAY_DIR}"
+
+        if [ ! -f "$${OVERLAY_DIR}/kustomization.yaml" ]; then
+          echo "ERROR: $${OVERLAY_DIR}/kustomization.yaml not found"
+          exit 1
+        fi
+
+        KUSTOMIZE_VERSION='v5.8.1'
+        KUSTOMIZE_SHA256='029a7f0f4e1932c52a0476cf02a0fd855c0bb85694b82c338fc648dcb53a819d'
+        KUSTOMIZE_TARBALL='/workspace/kustomize.tar.gz'
+        KUSTOMIZE_BIN='/workspace/kustomize'
+
+        curl -fsSL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2F$${KUSTOMIZE_VERSION}/kustomize_$${KUSTOMIZE_VERSION}_linux_amd64.tar.gz" -o "$${KUSTOMIZE_TARBALL}"
+        printf '%s  %s\n' "$${KUSTOMIZE_SHA256}" "$${KUSTOMIZE_TARBALL}" | sha256sum -c -
+        tar -xzf "$${KUSTOMIZE_TARBALL}" -C /workspace
+        chmod 0555 "$${KUSTOMIZE_BIN}"
+
+        IMAGE_NAME="${_DOCKER_REGISTRY}.pkg.dev/${_GCP_PROJECT}/${_REPOSITORY}/${_SERVICE_NAME}/main"
+
+        (cd "$${OVERLAY_DIR}" && "$${KUSTOMIZE_BIN}" edit set image "$${IMAGE_NAME}=$${IMAGE_NAME}:${SHORT_SHA}")
+
+        if git diff --quiet -- "$${OVERLAY_DIR}"; then
+          echo "No GitOps tag change needed for ${_SERVICE_NAME}; ${SHORT_SHA} is already set."
+          exit 0
+        fi
+
+        git add "$${OVERLAY_DIR}"
+        git commit -m "Update ${_SERVICE_NAME} image tag to $SHORT_SHA
+
+        Service: ${_SERVICE_NAME}
+        Branch: $BRANCH_NAME
+        Commit: $COMMIT_SHA
+        [skip ci]"
+
+        git push
+
+availableSecrets:
+  secretManager:
+    - versionName: 'projects/${_PROJECT_NUMBER}/secrets/github_token_atlas/versions/latest'
+      env: 'GITHUBTOKEN'
+    - versionName: 'projects/${_PROJECT_NUMBER}/secrets/codefac_kms_key_uri/versions/latest'
+      env: 'KMS_KEY_URI'
+
+options:
+  machineType: 'E2_HIGHCPU_8'
+  logging: 'CLOUD_LOGGING_ONLY'
+
+timeout: '1800s'
+
+substitutions:
+  # Artifact Registry
+  _DOCKER_REGISTRY: 'us-central1-docker'
+  _ARTIFACT_LOCATION: 'us-central1'
+  _GCP_PROJECT: 'appointy-global'
+  _REPOSITORY: 'codefac'
+  _ATTACHMENT_NAMESPACE: 'security-reports'
+
+  # Build Configuration
+  _DOCKERFILE: 'Dockerfile'
+  _PLATFORM: 'linux/amd64'
+  _SERVICE_NAME: 'e2b-dashboard'
+  _NEXT_PUBLIC_E2B_DOMAIN: 'e2b.quexio.com'
+  _NEXT_PUBLIC_DASHBOARD_API_URL: 'https://dashboard-api.e2b.quexio.com'
+  _NEXT_PUBLIC_INFRA_API_URL: 'https://api.e2b.quexio.com'
+  _NEXT_PUBLIC_E2B_SANDBOX_URL: ''
+  _NEXT_PUBLIC_ORY_SDK_URL: 'https://sharp-lamarr-2ngz7bltxd.projects.oryapis.com'
+  _NEXT_PUBLIC_INCLUDE_BILLING: '0'
+  _NEXT_PUBLIC_INCLUDE_REPORT_ISSUE: '0'
+  _NEXT_PUBLIC_INCLUDE_STATUS_INDICATOR: '0'
+
+  # GCP Infrastructure
+  _PROJECT_NUMBER: '293885036851'

@@ -3,6 +3,10 @@ import { z } from 'zod'
 export const serverSchema = z.object({
   DASHBOARD_API_ADMIN_TOKEN: z.string().min(1).optional(),
 
+  // Public dashboard origin for non-Vercel deployments (e.g. GKE). Falls
+  // back to VERCEL_ENV-derived URLs, then localhost, when unset.
+  DASHBOARD_URL: z.url().optional(),
+
   BILLING_API_URL: z.url().optional(),
   PLAIN_API_KEY: z.string().min(1).optional(),
 
