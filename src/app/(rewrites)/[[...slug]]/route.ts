@@ -86,9 +86,14 @@ export async function GET(request: NextRequest): Promise<Response> {
     if (contentType?.startsWith('text/html')) {
       let html = await res.text()
 
-      // remove content-encoding header to ensure proper rendering
+      // remove content-encoding/length and transfer-encoding headers: the
+      // response body below is a plain string, not the original (possibly
+      // chunked) upstream stream, so a leftover Transfer-Encoding: chunked
+      // header lies about framing and corrupts the response for clients
+      // that parse it strictly (GCLB, curl) — surfaces as a 502.
       newHeaders.delete('content-encoding')
       newHeaders.delete('content-length')
+      newHeaders.delete('transfer-encoding')
 
       // rewrite absolute URLs pointing to the rewritten domain to relative paths and with correct SEO tags
       if (config) {
