@@ -43,9 +43,11 @@ const tokens = {
 async function callbackRequest({
   withFlow = true,
   returnTo,
+  url = 'https://app.e2b.dev/api/auth/oauth/callback/ory?code=abc&state=state-value',
 }: {
   withFlow?: boolean
   returnTo?: string
+  url?: string
 } = {}): Promise<NextRequest> {
   const headers: Record<string, string> = {}
   if (withFlow) {
@@ -57,10 +59,7 @@ async function callbackRequest({
     })
     headers.cookie = `${E2B_OAUTH_FLOW_COOKIE}=${flow}`
   }
-  return new NextRequest(
-    'https://app.e2b.dev/api/auth/oauth/callback/ory?code=abc&state=state-value',
-    { headers }
-  )
+  return new NextRequest(url, { headers })
 }
 
 describe('Ory OAuth callback', () => {
@@ -113,6 +112,21 @@ describe('Ory OAuth callback', () => {
         redirectUri:
           'https://dashboard-e2b.quexio.com/api/auth/oauth/callback/ory',
       })
+    )
+  })
+
+  it('uses DASHBOARD_URL for the final browser redirect when the request URL is the internal bind address', async () => {
+    vi.stubEnv('DASHBOARD_URL', 'https://dashboard-e2b.quexio.com')
+
+    const response = await GET(
+      await callbackRequest({
+        returnTo: '/dashboard/default-team-fc80/sandboxes/monitoring',
+        url: 'http://0.0.0.0:8080/api/auth/oauth/callback/ory?code=abc&state=state-value',
+      })
+    )
+
+    expect(response.headers.get('location')).toBe(
+      'https://dashboard-e2b.quexio.com/dashboard/default-team-fc80/sandboxes/monitoring'
     )
   })
 
