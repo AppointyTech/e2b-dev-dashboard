@@ -11,6 +11,7 @@ import {
   openCliFlowState,
   readCliOAuthEnv,
 } from '@/core/server/auth/ory/cli-oauth'
+import { getRequestOrigin } from '@/core/server/request-origin'
 import { isLoopbackUrl } from '@/core/shared/schemas/url'
 
 // Hydra redirects here with ?code after SSO. We exchange the code (validating
@@ -18,7 +19,7 @@ import { isLoopbackUrl } from '@/core/shared/schemas/url'
 // The user must have an active Kratos session — Hydra used SSO to issue the
 // code without a login prompt.
 export async function GET(request: NextRequest) {
-  const origin = request.nextUrl.origin
+  const origin = getRequestOrigin(request)
 
   const flow = await openCliFlowState(
     request.cookies.get(CLI_OAUTH_FLOW_COOKIE)?.value

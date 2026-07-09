@@ -21,13 +21,14 @@ import {
   readOrySignupMetadataFromHeaders,
   signupMetadataCookieOptions,
 } from '@/core/server/auth/ory/signup-metadata'
+import { getRequestOrigin } from '@/core/server/request-origin'
 import { l, serializeErrorForLog } from '@/core/shared/clients/logger/logger'
 
 // Server-side entry point for the Ory OAuth2 flow. Builds the authorization URL
 // (PKCE S256, state, nonce), stashes the verifier/state/nonce in a short-lived
 // httpOnly cookie for the callback, and redirects the browser to Hydra.
 export async function GET(request: NextRequest) {
-  const origin = request.nextUrl.origin
+  const origin = getRequestOrigin(request)
   const intent = readOryAuthIntent(request.nextUrl.searchParams.get('intent'))
 
   if (!intent) {

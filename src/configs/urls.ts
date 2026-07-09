@@ -107,7 +107,7 @@ export const HELP_URLS = {
 }
 
 export const BASE_URL =
-  process.env.DASHBOARD_URL ??
+  (process.env.NODE_ENV === 'production' ? process.env.DASHBOARD_URL : null) ??
   (process.env.VERCEL_ENV
     ? process.env.VERCEL_ENV === 'production'
       ? 'https://e2b.dev'

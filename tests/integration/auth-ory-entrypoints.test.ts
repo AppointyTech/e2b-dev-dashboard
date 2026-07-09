@@ -207,6 +207,7 @@ describe('Ory auth entrypoints — middleware refresh (Pattern B)', () => {
 
 describe('Ory OAuth start route', () => {
   beforeEach(() => {
+    vi.stubEnv('DASHBOARD_URL', '')
     buildAuthorizationRequestMock.mockReset().mockResolvedValue({
       url: 'https://ory.example.com/oauth2/auth?client_id=x&state=s',
       state: 'state-value',
@@ -217,6 +218,10 @@ describe('Ory OAuth start route', () => {
       .mockReset()
       .mockReturnValue({ signup_ip: '203.0.113.10' })
     encodeSignupMetadataMock.mockReset().mockReturnValue('encoded-metadata')
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
   })
 
   it('builds the authorize URL and stashes the flow-state cookie', async () => {
@@ -234,6 +239,19 @@ describe('Ory OAuth start route', () => {
     expect(response.cookies.get('e2b_oauth_flow')?.value).toBeTruthy()
     // No signup metadata captured for a plain sign-in.
     expect(readSignupMetadataMock).not.toHaveBeenCalled()
+  })
+
+  it('uses DASHBOARD_URL for the redirect URI when configured', async () => {
+    vi.stubEnv('DASHBOARD_URL', 'https://dashboard-e2b.quexio.com')
+
+    await oauthStartGET(
+      new NextRequest('http://0.0.0.0:8080/api/auth/oauth/start?intent=signin')
+    )
+
+    expect(buildAuthorizationRequestMock).toHaveBeenCalledWith(
+      'signin',
+      'https://dashboard-e2b.quexio.com/api/auth/oauth/callback/ory'
+    )
   })
 
   it('captures signup metadata for the signup intent', async () => {

@@ -65,6 +65,7 @@ async function callbackRequest({
 
 describe('Ory OAuth callback', () => {
   beforeEach(() => {
+    vi.stubEnv('DASHBOARD_URL', '')
     vi.stubEnv('E2B_SESSION_SECRET', 'callback-test-secret')
     vi.stubEnv('ORY_HYDRA_PUBLIC_URL', 'https://ory.example.com')
     exchangeMock.mockReset().mockResolvedValue(tokens)
@@ -99,6 +100,19 @@ describe('Ory OAuth callback', () => {
 
     expect(response.headers.get('location')).toBe(
       'https://app.e2b.dev/dashboard'
+    )
+  })
+
+  it('uses DASHBOARD_URL for the token-exchange redirect URI when configured', async () => {
+    vi.stubEnv('DASHBOARD_URL', 'https://dashboard-e2b.quexio.com')
+
+    await GET(await callbackRequest())
+
+    expect(exchangeMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        redirectUri:
+          'https://dashboard-e2b.quexio.com/api/auth/oauth/callback/ory',
+      })
     )
   })
 

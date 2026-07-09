@@ -7,6 +7,7 @@ import {
   normalizeOryReturnTo,
 } from '@/core/server/auth/ory/build-start-url'
 import { clearAppSessionCookies } from '@/core/server/auth/ory/clear-session-cookies'
+import { getRequestOrigin } from '@/core/server/request-origin'
 
 // "Use a different account" from the reauth (refresh) login screen. Unlike
 // sign-out, this does not bounce through Hydra's RP-logout: with login accepted
@@ -24,7 +25,7 @@ export async function GET(request: NextRequest) {
   await revokeCurrentSession()
 
   const response = NextResponse.redirect(
-    new URL(buildOryStartURL('signin', returnTo), request.nextUrl.origin)
+    new URL(buildOryStartURL('signin', returnTo), getRequestOrigin(request))
   )
   clearAppSessionCookies(request, response)
   return response

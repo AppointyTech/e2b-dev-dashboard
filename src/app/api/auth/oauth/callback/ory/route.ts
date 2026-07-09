@@ -21,6 +21,7 @@ import {
   buildOryLogoutUrl,
   ORY_POST_LOGOUT_PATH,
 } from '@/core/server/auth/ory/signout'
+import { getRequestOrigin } from '@/core/server/request-origin'
 import { l, serializeErrorForLog } from '@/core/shared/clients/logger/logger'
 import { relativeUrlSchema } from '@/core/shared/schemas/url'
 
@@ -29,7 +30,7 @@ import { relativeUrlSchema } from '@/core/shared/schemas/url'
 // id_token, then seal the OIDC tokens into e2b_session. Kratos already owns the
 // session at this point — this cookie only carries tokens for API access.
 export async function GET(request: NextRequest) {
-  const origin = request.nextUrl.origin
+  const origin = getRequestOrigin(request)
   const flow = await openOryFlowState(
     request.cookies.get(E2B_OAUTH_FLOW_COOKIE)?.value
   )
