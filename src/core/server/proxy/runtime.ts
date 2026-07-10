@@ -3,7 +3,7 @@ import 'server-cli-only'
 import { createOryMiddleware } from '@ory/nextjs/middleware'
 import {
   type NextFetchEvent,
-  type NextRequest,
+  NextRequest,
   NextResponse,
 } from 'next/server'
 import oryConfig from '@/configs/ory'
@@ -57,6 +57,34 @@ function isOrySdkProxyPath(pathname: string): boolean {
   return ORY_SDK_PROXY_PREFIXES.some((prefix) => pathname.startsWith(prefix))
 }
 
+function withDashboardOrigin(request: NextRequest): NextRequest {
+  const dashboardUrl = process.env.DASHBOARD_URL
+  if (!dashboardUrl) return request
+
+  const origin = new URL(dashboardUrl)
+  const publicUrl = new URL(
+    request.nextUrl.pathname + request.nextUrl.search,
+    origin
+  )
+  const headers = new Headers(request.headers)
+  headers.set('host', origin.host)
+  headers.set('x-forwarded-host', origin.host)
+  headers.set('x-forwarded-proto', origin.protocol.replace(/:$/, ''))
+
+  if (request.method === 'GET' || request.method === 'HEAD') {
+    return new NextRequest(publicUrl, {
+      headers,
+      method: request.method,
+    })
+  }
+
+  return new NextRequest(publicUrl, {
+    body: request.body,
+    headers,
+    method: request.method,
+  })
+}
+
 export async function runDashboardProxy(
   request: NextRequest,
   _event: NextFetchEvent
@@ -74,7 +102,7 @@ export async function runDashboardProxy(
   // Forward Ory SDK traffic to Kratos before classification (it would otherwise
   // classify as a bypass and go to Next).
   if (isOrySdkProxyPath(request.nextUrl.pathname)) {
-    return oryProxy(request)
+    return oryProxy(withDashboardOrigin(request))
   }
 
   const plan = classifyProxyRequest(request.nextUrl.pathname)
