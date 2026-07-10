@@ -71,8 +71,7 @@ LABEL org.opencontainers.image.title="e2b-dashboard" \
       org.opencontainers.image.revision="${GIT_SHA}" \
       org.opencontainers.image.version="${BUILD_VERSION}"
 
-ENV HOSTNAME=0.0.0.0 \
-    NODE_ENV=production \
+ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     PORT=8080
 
