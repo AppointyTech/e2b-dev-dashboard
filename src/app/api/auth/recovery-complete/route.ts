@@ -4,6 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { AUTH_URLS } from '@/configs/urls'
 import { handleCredentialChangeSuccess } from '@/core/server/auth'
 import { clearAppSessionCookies } from '@/core/server/auth/ory/clear-session-cookies'
+import { getPublicOrigin } from '@/core/server/auth/ory/public-origin'
 
 // Post-recovery password reset on /settings completed. The Kratos session minted
 // by the recovery flow is still live, so a bare redirect to /sign-in lets Hydra
@@ -15,7 +16,7 @@ export async function GET(request: NextRequest) {
   await handleCredentialChangeSuccess()
 
   const response = NextResponse.redirect(
-    new URL(AUTH_URLS.SIGN_IN, request.nextUrl.origin)
+    new URL(AUTH_URLS.SIGN_IN, getPublicOrigin(request))
   )
   clearAppSessionCookies(request, response)
   return response

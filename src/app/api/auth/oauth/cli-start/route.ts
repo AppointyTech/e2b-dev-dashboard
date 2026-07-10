@@ -7,6 +7,7 @@ import {
   cliFlowCookieOptions,
   sealCliFlowState,
 } from '@/core/server/auth/ory/cli-oauth'
+import { getPublicOrigin } from '@/core/server/auth/ory/public-origin'
 import { isLoopbackUrl } from '@/core/shared/schemas/url'
 
 // Initiates the CLI OAuth flow with the public client. The browser is
@@ -19,7 +20,7 @@ export async function GET(request: NextRequest) {
     return new NextResponse('Invalid redirect URL', { status: 400 })
   }
 
-  const redirectUri = `${request.nextUrl.origin}${CLI_OAUTH_CALLBACK_PATH}`
+  const redirectUri = `${getPublicOrigin(request)}${CLI_OAUTH_CALLBACK_PATH}`
 
   let authorization: CliAuthorizationRequest
   let sealedFlow: string

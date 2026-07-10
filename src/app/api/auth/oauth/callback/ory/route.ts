@@ -10,6 +10,7 @@ import {
   openOryFlowState,
 } from '@/core/server/auth/ory/oauth-flow'
 import { resolveOryRedirectUri } from '@/core/server/auth/ory/oauth-relay'
+import { getPublicOrigin } from '@/core/server/auth/ory/public-origin'
 import { readKratosExternalId } from '@/core/server/auth/ory/session'
 import {
   ORY_SIGNUP_METADATA_COOKIE,
@@ -30,7 +31,7 @@ import { relativeUrlSchema } from '@/core/shared/schemas/url'
 // id_token, then seal the OIDC tokens into e2b_session. Kratos already owns the
 // session at this point — this cookie only carries tokens for API access.
 export async function GET(request: NextRequest) {
-  const origin = request.nextUrl.origin
+  const origin = getPublicOrigin(request)
   const flow = await openOryFlowState(
     request.cookies.get(E2B_OAUTH_FLOW_COOKIE)?.value
   )

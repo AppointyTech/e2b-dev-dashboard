@@ -15,6 +15,7 @@ import {
   resolveOryRedirectUri,
   sealRelayState,
 } from '@/core/server/auth/ory/oauth-relay'
+import { getPublicOrigin } from '@/core/server/auth/ory/public-origin'
 import { ORY_SIGNUP_METADATA_COOKIE } from '@/core/server/auth/ory/session-cookie'
 import {
   encodeOrySignupMetadata,
@@ -27,7 +28,7 @@ import { l, serializeErrorForLog } from '@/core/shared/clients/logger/logger'
 // (PKCE S256, state, nonce), stashes the verifier/state/nonce in a short-lived
 // httpOnly cookie for the callback, and redirects the browser to Hydra.
 export async function GET(request: NextRequest) {
-  const origin = request.nextUrl.origin
+  const origin = getPublicOrigin(request)
   const intent = readOryAuthIntent(request.nextUrl.searchParams.get('intent'))
 
   if (!intent) {

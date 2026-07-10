@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 export const serverSchema = z.object({
   DASHBOARD_API_ADMIN_TOKEN: z.string().min(1).optional(),
+  DASHBOARD_URL: z.url().optional(),
 
   BILLING_API_URL: z.url().optional(),
   PLAIN_API_KEY: z.string().min(1).optional(),

@@ -5,6 +5,7 @@ import {
   getOryFrontendApi,
   getOryOAuth2Api,
 } from '@/core/server/auth/ory/client'
+import { getPublicOrigin } from '@/core/server/auth/ory/public-origin'
 import { ORY_POST_LOGOUT_PATH } from '@/core/server/auth/ory/signout'
 import { l, serializeErrorForLog } from '@/core/shared/clients/logger/logger'
 
@@ -15,7 +16,7 @@ import { l, serializeErrorForLog } from '@/core/shared/clients/logger/logger'
 // Hydra finalizes. Without that hop the OAuth2 session ends but the identity
 // session survives, and the next sign-in skips straight to the password step.
 export async function GET(request: NextRequest) {
-  const home = new URL(ORY_POST_LOGOUT_PATH, request.nextUrl.origin)
+  const home = new URL(ORY_POST_LOGOUT_PATH, getPublicOrigin(request))
   const logoutChallenge = request.nextUrl.searchParams.get('logout_challenge')
 
   if (!logoutChallenge) {

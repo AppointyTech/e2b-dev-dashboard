@@ -8,6 +8,7 @@ import {
 } from '@/core/server/auth/ory/client'
 import type { OryIdentityTraits } from '@/core/server/auth/ory/identity'
 import { readOryOAuthEnv } from '@/core/server/auth/ory/oauth-client'
+import { getPublicOrigin } from '@/core/server/auth/ory/public-origin'
 import { ORY_POST_LOGOUT_PATH } from '@/core/server/auth/ory/signout'
 import { l, serializeErrorForLog } from '@/core/shared/clients/logger/logger'
 
@@ -17,7 +18,7 @@ import { l, serializeErrorForLog } from '@/core/shared/clients/logger/logger'
 // id_token. Hydra holds no identity data of its own, so without this the issued
 // tokens carry sub/iss but no email/name and user bootstrap rejects the login.
 export async function GET(request: NextRequest) {
-  const home = new URL(ORY_POST_LOGOUT_PATH, request.nextUrl.origin)
+  const home = new URL(ORY_POST_LOGOUT_PATH, getPublicOrigin(request))
   const consentChallenge = request.nextUrl.searchParams.get('consent_challenge')
 
   if (!consentChallenge) {
