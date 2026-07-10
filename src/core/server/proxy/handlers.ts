@@ -3,6 +3,7 @@ import 'server-cli-only'
 import { type NextRequest, NextResponse } from 'next/server'
 import { ALLOW_SEO_INDEXING } from '@/configs/env-flags'
 import { AUTH_URLS, PROTECTED_URLS } from '@/configs/urls'
+import { getPublicOrigin } from '@/core/server/auth/ory/public-origin'
 import { getMiddlewareRedirectFromPath } from '@/lib/utils/redirects'
 import { getRewriteForPath } from '@/lib/utils/rewrites'
 import { isProxyAuthRoute, isProxyDashboardRoute } from './classifier'
@@ -11,8 +12,10 @@ export function getAuthRedirect(
   request: NextRequest,
   isAuthenticated: boolean
 ): NextResponse | null {
+  const origin = getPublicOrigin(request)
+
   if (isProxyDashboardRoute(request.nextUrl.pathname) && !isAuthenticated) {
-    const signInUrl = new URL(AUTH_URLS.SIGN_IN, request.url)
+    const signInUrl = new URL(AUTH_URLS.SIGN_IN, origin)
     signInUrl.searchParams.set(
       'returnTo',
       `${request.nextUrl.pathname}${request.nextUrl.search}`
@@ -22,7 +25,7 @@ export function getAuthRedirect(
   }
 
   if (isProxyAuthRoute(request.nextUrl.pathname) && isAuthenticated) {
-    return NextResponse.redirect(new URL(PROTECTED_URLS.DASHBOARD, request.url))
+    return NextResponse.redirect(new URL(PROTECTED_URLS.DASHBOARD, origin))
   }
 
   return null
@@ -34,7 +37,7 @@ export function handleMiddlewareRedirect(
   const redirect = getMiddlewareRedirectFromPath(request.nextUrl.pathname)
   if (!redirect) return null
 
-  return NextResponse.redirect(new URL(redirect.destination, request.url), {
+  return NextResponse.redirect(new URL(redirect.destination, getPublicOrigin(request)), {
     status: redirect.statusCode,
     headers: new Headers(redirect.headers),
   })

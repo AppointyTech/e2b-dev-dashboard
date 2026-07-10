@@ -5,6 +5,7 @@ import {
   isAllowedRelayTarget,
   openRelayState,
 } from '@/core/server/auth/ory/oauth-relay'
+import { getPublicOrigin } from '@/core/server/auth/ory/public-origin'
 import { ORY_POST_LOGOUT_PATH } from '@/core/server/auth/ory/signout'
 import { l } from '@/core/shared/clients/logger/logger'
 
@@ -14,7 +15,7 @@ import { l } from '@/core/shared/clients/logger/logger'
 // cleared the cookies on the preview before the Hydra hop, so this is a pure
 // redirect. See oauth-relay.ts.
 export async function GET(request: NextRequest) {
-  const origin = request.nextUrl.origin
+  const origin = getPublicOrigin(request)
   const target = await openRelayState(request.nextUrl.searchParams.get('state'))
 
   if (!target || !isAllowedRelayTarget(target)) {

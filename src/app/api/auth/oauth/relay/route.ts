@@ -9,6 +9,7 @@ import {
   isAllowedRelayTarget,
   openRelayState,
 } from '@/core/server/auth/ory/oauth-relay'
+import { getPublicOrigin } from '@/core/server/auth/ory/public-origin'
 import { l } from '@/core/shared/clients/logger/logger'
 
 // Fixed-host relay for preview deployments. Hydra is configured with this host's
@@ -18,7 +19,7 @@ import { l } from '@/core/shared/clients/logger/logger'
 // callback, which finishes the PKCE exchange (its verifier never left that
 // origin). See oauth-relay.ts. Never touches cookies.
 export async function GET(request: NextRequest) {
-  const origin = request.nextUrl.origin
+  const origin = getPublicOrigin(request)
   const state = request.nextUrl.searchParams.get('state')
   const target = await openRelayState(state)
 

@@ -48,7 +48,10 @@ export async function GET(request: NextRequest) {
   try {
     tokens = await exchangeOryCallback({
       // A genuine global URL — oauth4webapi rejects NextURL (not `instanceof URL`).
-      currentUrl: new URL(request.url),
+      currentUrl: new URL(
+        request.nextUrl.pathname + request.nextUrl.search,
+        origin
+      ),
       expectedState: flow.state,
       expectedNonce: flow.nonce,
       codeVerifier: flow.codeVerifier,
@@ -116,14 +119,13 @@ export async function GET(request: NextRequest) {
     sealed,
     request.cookies.getAll()
   )
-  const options = sessionCookieOptions(request.nextUrl.host)
+  const cookieHost = new URL(origin).host
+  const options = sessionCookieOptions(cookieHost)
   for (const chunk of write) {
     response.cookies.set(chunk.name, chunk.value, options)
   }
   for (const name of expire) {
-    response.cookies.delete(
-      sessionCookieDeleteOptions(request.nextUrl.host, name)
-    )
+    response.cookies.delete(sessionCookieDeleteOptions(cookieHost, name))
   }
   return response
 }

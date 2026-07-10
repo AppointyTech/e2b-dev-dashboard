@@ -4,6 +4,7 @@ import {
   buildOryStartURL,
   type OryAuthIntent,
 } from '@/core/server/auth/ory/build-start-url'
+import { getPublicOrigin } from '@/core/server/auth/ory/public-origin'
 
 const INTENT_BY_PATH: Record<string, OryAuthIntent> = {
   '/sign-in': 'signin',
@@ -17,13 +18,14 @@ export function getAuthRouteRedirect(
 ): NextResponse | null {
   const intent = getAuthIntentFromPath(request.nextUrl.pathname)
   if (!intent) return null
+  const origin = getPublicOrigin(request)
 
   if (isAuthenticated) {
-    return NextResponse.redirect(new URL(PROTECTED_URLS.DASHBOARD, request.url))
+    return NextResponse.redirect(new URL(PROTECTED_URLS.DASHBOARD, origin))
   }
 
   const returnTo = request.nextUrl.searchParams.get('returnTo') ?? undefined
-  const target = new URL(buildOryStartURL(intent, returnTo), request.url)
+  const target = new URL(buildOryStartURL(intent, returnTo), origin)
 
   return NextResponse.redirect(target)
 }

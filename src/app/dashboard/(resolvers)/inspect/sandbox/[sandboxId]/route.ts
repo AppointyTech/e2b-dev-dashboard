@@ -5,6 +5,7 @@ import { COOKIE_KEYS } from '@/configs/cookies'
 import { AUTH_URLS, PROTECTED_URLS } from '@/configs/urls'
 import { createUserTeamsRepository } from '@/core/modules/teams/user-teams-repository.server'
 import { getAuthContext } from '@/core/server/auth'
+import { getPublicOrigin } from '@/core/server/auth/ory/public-origin'
 import { infra } from '@/core/shared/clients/api'
 import { l, serializeErrorForLog } from '@/core/shared/clients/logger/logger'
 import { SandboxIdSchema } from '@/core/shared/schemas/api'
@@ -36,13 +37,13 @@ function redirectToDashboardWithWarning(
     ...context,
   })
   return NextResponse.redirect(
-    new URL(PROTECTED_URLS.DASHBOARD, request.nextUrl.origin)
+    new URL(PROTECTED_URLS.DASHBOARD, getPublicOrigin(request))
   )
 }
 
 function redirectToSignInPage(request: NextRequest): NextResponse {
   return NextResponse.redirect(
-    new URL(AUTH_URLS.SIGN_IN, request.nextUrl.origin)
+    new URL(AUTH_URLS.SIGN_IN, getPublicOrigin(request))
   )
 }
 
@@ -192,7 +193,7 @@ export async function GET(
 
     const redirectUrl = new URL(
       PROTECTED_URLS.SANDBOX(selectedTeam.slug, sandboxId),
-      request.url
+      getPublicOrigin(request)
     )
 
     await setTeamCookies(selectedTeam.id, selectedTeam.slug)
