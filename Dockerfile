@@ -1,18 +1,23 @@
 # syntax=docker/dockerfile:1.7
 
-ARG BUN_VERSION=1.2.0
+ARG BUN_VERSION=1.3.2
+ARG NODE_VERSION=22.13.1
 
-FROM oven/bun:${BUN_VERSION}-alpine AS deps
+FROM oven/bun:${BUN_VERSION}-alpine AS bun
+
+FROM node:${NODE_VERSION}-alpine AS deps
 WORKDIR /app
 
+COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile
 
-FROM oven/bun:${BUN_VERSION}-alpine AS builder
+FROM node:${NODE_VERSION}-alpine AS builder
 WORKDIR /app
 
 ENV NEXT_TELEMETRY_DISABLED=1
 
+COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
@@ -56,9 +61,10 @@ RUN set -eu; \
     else \
       unset NEXT_PUBLIC_E2B_SANDBOX_URL; \
     fi; \
-    bun run build
+    bun scripts/check-app-env.ts; \
+    node node_modules/next/dist/bin/next build --webpack
 
-FROM oven/bun:${BUN_VERSION}-alpine AS runner
+FROM node:${NODE_VERSION}-alpine AS runner
 WORKDIR /app
 
 ARG BUILD_DATE
@@ -75,6 +81,7 @@ ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     PORT=8080
 
+COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile --production \
     && bun pm cache rm
@@ -87,4 +94,4 @@ RUN mkdir -p .next/cache \
 USER 1000:1000
 EXPOSE 8080
 
-CMD ["bun", "node_modules/next/dist/bin/next", "start", "-H", "0.0.0.0", "-p", "8080"]
+CMD ["node", "node_modules/next/dist/bin/next", "start", "-H", "0.0.0.0", "-p", "8080"]
