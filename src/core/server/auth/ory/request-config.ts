@@ -8,6 +8,14 @@ import oryConfig from '@/configs/ory'
 // exported. Server-only (reads next/headers); used by the flow pages.
 export async function getOryConfigForRequest(): Promise<OryClientConfiguration> {
   const requestHeaders = await headers()
+  const dashboardUrl = process.env.DASHBOARD_URL
+  if (dashboardUrl) {
+    return {
+      ...oryConfig,
+      sdk: { ...oryConfig.sdk, url: new URL(dashboardUrl).origin },
+    }
+  }
+
   const host = requestHeaders.get('host')
   if (!host) return oryConfig
 

@@ -1,5 +1,4 @@
 import { getSettingsFlow, type OryPageParams } from '@ory/nextjs/app'
-import oryConfig from '@/configs/ory'
 import { getSettingsProfile } from '@/core/server/auth'
 import { getOryConfigForRequest } from '@/core/server/auth/ory/request-config'
 import { SettingsCards } from './settings-cards'
@@ -13,17 +12,15 @@ export const dynamic = 'force-dynamic'
 // external_id). Name/e-mail are shown read-only for reference; editing the
 // account profile stays on the gated /dashboard/account page.
 export default async function SettingsPage(props: OryPageParams) {
-  const flow = await getSettingsFlow(oryConfig, props.searchParams)
+  const config = await getOryConfigForRequest()
+  const flow = await getSettingsFlow(config, props.searchParams)
 
   // getSettingsFlow has already redirected (created a flow / surfaced login).
   if (!flow) {
     return null
   }
 
-  const [config, profile] = await Promise.all([
-    getOryConfigForRequest(),
-    getSettingsProfile(),
-  ])
+  const profile = await getSettingsProfile()
 
   return (
     <SettingsCards
