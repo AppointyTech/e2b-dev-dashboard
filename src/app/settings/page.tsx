@@ -1,5 +1,6 @@
-import { getSettingsFlow, type OryPageParams } from '@ory/nextjs/app'
+import type { OryPageParams } from '@ory/nextjs/app'
 import { getSettingsProfile } from '@/core/server/auth'
+import { getDashboardSettingsFlow } from '@/core/server/auth/ory/app-flow'
 import { getOryConfigForRequest } from '@/core/server/auth/ory/request-config'
 import { SettingsCards } from './settings-cards'
 
@@ -13,7 +14,7 @@ export const dynamic = 'force-dynamic'
 // account profile stays on the gated /dashboard/account page.
 export default async function SettingsPage(props: OryPageParams) {
   const config = await getOryConfigForRequest()
-  const flow = await getSettingsFlow(config, props.searchParams)
+  const flow = await getDashboardSettingsFlow(props.searchParams)
 
   // getSettingsFlow has already redirected (created a flow / surfaced login).
   if (!flow) {

@@ -6,9 +6,19 @@ import { oryComponents } from '@/app/login/components'
 
 type RecoveryProps = ComponentProps<typeof Recovery>
 
+type RecoveryCardProps = Pick<RecoveryProps, 'config'> & {
+  flow: unknown
+}
+
 export function RecoveryCard({
   flow,
   config,
-}: Pick<RecoveryProps, 'flow' | 'config'>) {
-  return <Recovery flow={flow} config={config} components={oryComponents} />
+}: RecoveryCardProps) {
+  return (
+    <Recovery
+      flow={flow as RecoveryProps['flow']}
+      config={config}
+      components={oryComponents}
+    />
+  )
 }

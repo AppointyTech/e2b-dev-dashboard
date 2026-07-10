@@ -6,9 +6,19 @@ import { oryComponents } from '@/app/login/components'
 
 type RegistrationProps = ComponentProps<typeof Registration>
 
+type RegistrationCardProps = Pick<RegistrationProps, 'config'> & {
+  flow: unknown
+}
+
 export function RegistrationCard({
   flow,
   config,
-}: Pick<RegistrationProps, 'flow' | 'config'>) {
-  return <Registration flow={flow} config={config} components={oryComponents} />
+}: RegistrationCardProps) {
+  return (
+    <Registration
+      flow={flow as RegistrationProps['flow']}
+      config={config}
+      components={oryComponents}
+    />
+  )
 }

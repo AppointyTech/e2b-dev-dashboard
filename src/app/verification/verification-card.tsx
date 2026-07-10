@@ -6,9 +6,19 @@ import { oryComponents } from '@/app/login/components'
 
 type VerificationProps = ComponentProps<typeof Verification>
 
+type VerificationCardProps = Pick<VerificationProps, 'config'> & {
+  flow: unknown
+}
+
 export function VerificationCard({
   flow,
   config,
-}: Pick<VerificationProps, 'flow' | 'config'>) {
-  return <Verification flow={flow} config={config} components={oryComponents} />
+}: VerificationCardProps) {
+  return (
+    <Verification
+      flow={flow as VerificationProps['flow']}
+      config={config}
+      components={oryComponents}
+    />
+  )
 }

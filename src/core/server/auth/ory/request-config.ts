@@ -7,18 +7,24 @@ import oryConfig from '@/configs/ory'
 // @ory/nextjs's internal getPublicUrl() (host + x-forwarded-proto), which isn't
 // exported. Server-only (reads next/headers); used by the flow pages.
 export async function getOryConfigForRequest(): Promise<OryClientConfiguration> {
+  const origin = await getPublicOriginForRequest()
+
+  if (!origin) return oryConfig
+
+  return { ...oryConfig, sdk: { ...oryConfig.sdk, url: origin } }
+}
+
+export async function getPublicOriginForRequest(): Promise<string | null> {
   const requestHeaders = await headers()
   const dashboardUrl = process.env.DASHBOARD_URL
   if (dashboardUrl) {
-    return {
-      ...oryConfig,
-      sdk: { ...oryConfig.sdk, url: new URL(dashboardUrl).origin },
-    }
+    return new URL(dashboardUrl).origin
   }
 
-  const host = requestHeaders.get('host')
-  if (!host) return oryConfig
+  const forwardedHost = requestHeaders.get('x-forwarded-host')?.split(',')[0]
+  const host = forwardedHost ?? requestHeaders.get('host')
+  if (!host) return null
 
-  const proto = requestHeaders.get('x-forwarded-proto') ?? 'http'
-  return { ...oryConfig, sdk: { ...oryConfig.sdk, url: `${proto}://${host}` } }
+  const proto = requestHeaders.get('x-forwarded-proto')?.split(',')[0] ?? 'http'
+  return `${proto}://${host}`
 }

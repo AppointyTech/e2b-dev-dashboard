@@ -1,4 +1,5 @@
-import { getLoginFlow, type OryPageParams } from '@ory/nextjs/app'
+import type { OryPageParams } from '@ory/nextjs/app'
+import { getDashboardLoginFlow } from '@/core/server/auth/ory/app-flow'
 import { getOryConfigForRequest } from '@/core/server/auth/ory/request-config'
 import { LoginCard } from './login-card'
 
@@ -9,7 +10,7 @@ export const dynamic = 'force-dynamic'
 // Hydra (creates the Kratos flow) and the resulting `?flow=` from Kratos.
 export default async function OryLoginPage(props: OryPageParams) {
   const config = await getOryConfigForRequest()
-  const flow = await getLoginFlow(config, props.searchParams)
+  const flow = await getDashboardLoginFlow(props.searchParams)
 
   // null only on unrecoverable error (getLoginFlow has already redirected).
   if (!flow) {
